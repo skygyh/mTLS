@@ -52,8 +52,8 @@ func helloHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	port := 8080
-	sslPort := 8443
+	port := 9080
+	sslPort := 9443
 
 	// Set up a /hello resource handler
 	handler := http.NewServeMux()
@@ -79,6 +79,12 @@ func main() {
 	}
 	caCertPool := x509.NewCertPool()
 	caCertPool.AppendCertsFromPEM(caCertFile)
+
+	caCertFilebk, err := ioutil.ReadFile("./certs.bk/ca.crt")
+	if err != nil {
+		log.Fatalf("error reading CA certificate: %v", err)
+	}
+	caCertPool.AppendCertsFromPEM(caCertFilebk)
 
 	// Create the TLS Config with the CA pool and enable Client certificate validation
 	tlsConfig := &tls.Config{

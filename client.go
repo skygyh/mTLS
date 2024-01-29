@@ -16,15 +16,15 @@ func main() {
 	name := flag.String("c", "a", "client name")
 	flag.Parse()
 
-	cert, err := ioutil.ReadFile("./certs/ca.crt")
+	cert, err := ioutil.ReadFile("./certs.bk/ca.crt")
 	if err != nil {
 		log.Fatalf("could not open certificate file: %v", err)
 	}
 	caCertPool := x509.NewCertPool()
 	caCertPool.AppendCertsFromPEM(cert)
 
-	clientCert := fmt.Sprintf("./certs/client.%s.crt", *name)
-	clientKey := fmt.Sprintf("./certs/client.%s.key", *name)
+	clientCert := fmt.Sprintf("./certs.bk/client.%s.crt", *name)
+	clientKey := fmt.Sprintf("./certs.bk/client.%s.key", *name)
 	log.Println("Load key pairs - ", clientCert, clientKey)
 	certificate, err := tls.LoadX509KeyPair(clientCert, clientKey)
 	if err != nil {
@@ -47,7 +47,7 @@ func main() {
 	//   --cacert ./ca.crt  --cert ./client.b.crt --key ./client.b.key  \
 	//     https://localhost:8443/hello
 
-	r, err := client.Get("https://localhost:8443/hello")
+	r, err := client.Get("https://localhost:9443/hello")
 	if err != nil {
 		log.Fatalf("error making get request: %v", err)
 	}
