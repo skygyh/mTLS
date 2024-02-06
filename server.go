@@ -51,6 +51,10 @@ func helloHandler(w http.ResponseWriter, r *http.Request) {
 	io.WriteString(w, "Hello, world!\n")
 }
 
+const ca_cert string = "./certs/ca.crt"
+const server_cert string = "./certs/server.crt"
+const server_key string = "./certs/server.key" 
+
 func main() {
 	port := 9080
 	sslPort := 9443
@@ -73,18 +77,18 @@ func main() {
 	}()
 
 	// load CA certificate file and add it to list of client CAs
-	caCertFile, err := ioutil.ReadFile("./certs/ca.crt")
+	caCertFile, err := ioutil.ReadFile(ca_cert)
 	if err != nil {
 		log.Fatalf("error reading CA certificate: %v", err)
 	}
 	caCertPool := x509.NewCertPool()
 	caCertPool.AppendCertsFromPEM(caCertFile)
 
-	caCertFilebk, err := ioutil.ReadFile("./certs.bk/ca.crt")
-	if err != nil {
-		log.Fatalf("error reading CA certificate: %v", err)
-	}
-	caCertPool.AppendCertsFromPEM(caCertFilebk)
+//	caCertFilebk, err := ioutil.ReadFile("./certs.bk/ca.crt")
+//	if err != nil {
+//		log.Fatalf("error reading CA certificate: %v", err)
+//	}
+//	caCertPool.AppendCertsFromPEM(caCertFilebk)
 
 	// Create the TLS Config with the CA pool and enable Client certificate validation
 	tlsConfig := &tls.Config{
@@ -112,7 +116,7 @@ func main() {
 	}
 
 	fmt.Printf("(HTTPS) Listen on :%d\n", sslPort)
-	if err := server.ListenAndServeTLS("./certs/server.crt", "./certs/server.key"); err != nil {
+	if err := server.ListenAndServeTLS(server_cert, server_key); err != nil {
 		log.Fatalf("(HTTPS) error listening to port: %v", err)
 	}
 
