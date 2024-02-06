@@ -2,156 +2,207 @@ package main
 
 import (
 	"crypto/tls"
+	"crypto/x509"
 	"fmt"
+	"io"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
-	"os/signal"
-	"sync"
-	"syscall"
+	"sync/atomic"
 	"time"
+	"unsafe"
 )
 
-var (
-	certFile       = "cert.pem"       // Path to the original certificate file
-	keyFile        = "key.pem"        // Path to the original private key file
-	newCertFile    = "new_cert.pem"   // Path to the new certificate file
-	newKeyFile     = "new_key.pem"    // Path to the new private key file
-	reloadInterval = 10 * time.Second // Interval for checking file changes
-)
-
-// ConnectionState holds the connection state information
-type ConnectionState struct {
-	tlsConfig *tls.Config
-}
-
-// Server holds the server state information
-type Server struct {
-	mu            sync.RWMutex
-	tlsConfig     *tls.Config
-	connectionMap map[*http.Conn]struct{}
-}
-
-// HandleConnection handles the incoming connections
-func (s *Server) HandleConnection(w http.ResponseWriter, r *http.Request) {
-	s.mu.RLock()
-	tlsConfig := s.tlsConfig // Use the current TLS configuration
-	s.mu.RUnlock()
-
-	tlsConn, err := tls.ListenerForConfig(&tls.Config{
-		Certificates:       tlsConfig.Certificates,
-		InsecureSkipVerify: true, // Skip verification for simplicity
-	})
-	if err != nil {
-		log.Printf("Failed to create TLS connection: %v", err)
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-		return
-	}
-	defer tlsConn.Close()
-
-	// Handle the connection logic
-	// ...
-}
-
-// Start starts the server
-func (s *Server) Start() {
-	http.HandleFunc("/", s.HandleConnection)
-
-	server := &http.Server{
-		Addr:    ":443",
-		Handler: nil, // Use the default handler
-		TLSConfig: &tls.Config{
-			GetCertificate: func(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
-				// Return the current certificate for all connections
-				s.mu.RLock()
-				defer s.mu.RUnlock()
-				return s.tlsConfig.Certificates[0], nil
-			},
-		},
-	}
-
-	go func() {
-		if err := server.ListenAndServeTLS("", ""); err != nil {
-			log.Fatal(err)
-		}
-	}()
-
-	log.Println("Server started")
-
-	// Wait for the interrupt signal to gracefully shutdown the server
-	stop := make(chan os.Signal, 1)
-	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
-	<-stop
-
-	log.Println("Shutting down server...")
-
-	// Gracefully shutdown the server
-	server.Shutdown(nil)
-}
-
-// ReloadTLSConfig reloads the TLS configuration
-func (s *Server) ReloadTLSConfig() error {
-	cert, err := tls.LoadX509KeyPair(newCertFile, newKeyFile)
-	if err != nil {
-		return fmt.Errorf("failed to load new certificate: %v", err)
-	}
-
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.tlsConfig.Certificates = []tls.Certificate{cert}
-
-	log.Println("TLS configuration reloaded successfully")
-
-	return nil
-}
-
-// MonitorFiles continuously monitors the certificate files for changes
-func (s *Server) MonitorFiles() {
-	for {
-		select {
-		case <-time.After(reloadInterval):
-			// Check if the certificate files have changed
-			if hasChanged(certFile, keyFile) {
-				log.Println("Certificate files have changed. Reloading TLS configuration...")
-
-				err := s.ReloadTLSConfig()
-				if err != nil {
-					log.Printf("Failed to reload TLS configuration: %v", err)
-				}
-			}
+func printHeader(r *http.Request) {
+	log.Print(">>>>>>>>>>>>>>>> Header <<<<<<<<<<<<<<<<")
+	// Loop over header names
+	for name, values := range r.Header {
+		// Loop over all values for the name.
+		for _, value := range values {
+			log.Printf("%v:%v", name, value)
 		}
 	}
 }
 
-// hasChanged checks if the file has changed
-func hasChanged(filename ...string) bool {
-	// Implement your file change detection logic here
-	// ...
-	return false
+func printConnState(state *tls.ConnectionState) {
+	log.Print(">>>>>>>>>>>>>>>> State <<<<<<<<<<<<<<<<")
+
+	log.Printf("Version: %x", state.Version)
+	log.Printf("HandshakeComplete: %t", state.HandshakeComplete)
+	log.Printf("DidResume: %t", state.DidResume)
+	log.Printf("CipherSuite: %x", state.CipherSuite)
+	log.Printf("NegotiatedProtocol: %s", state.NegotiatedProtocol)
+	log.Printf("NegotiatedProtocolIsMutual: %t", state.NegotiatedProtocolIsMutual)
+
+	log.Print("Certificate chain:")
+	for i, cert := range state.PeerCertificates {
+		subject := cert.Subject
+		issuer := cert.Issuer
+		log.Printf(" %d s:/C=%v/ST=%v/L=%v/O=%v/OU=%v/CN=%s", i, subject.Country, subject.Province, subject.Locality, subject.Organization, subject.OrganizationalUnit, subject.CommonName)
+		log.Printf("   i:/C=%v/ST=%v/L=%v/O=%v/OU=%v/CN=%s", issuer.Country, issuer.Province, issuer.Locality, issuer.Organization, issuer.OrganizationalUnit, issuer.CommonName)
+	}
+}
+
+func helloHandler(w http.ResponseWriter, r *http.Request) {
+	printHeader(r)
+	if r.TLS != nil {
+		printConnState(r.TLS)
+	}
+	log.Print(">>>>>>>>>>>>>>>>> End <<<<<<<<<<<<<<<<<<")
+	fmt.Println("")
+	// Write "Hello, world!" to the response body
+	io.WriteString(w, "Hello, world!\n")
 }
 
 func main() {
-	// Create a server instance
-	server := &Server{
-		tlsConfig:     &tls.Config{},
-		connectionMap: make(map[*http.Conn]struct{}),
+	port := 9080
+	sslPort := 9443
+
+	// Set up a /hello resource handler
+	handler := http.NewServeMux()
+	handler.HandleFunc("/hello", helloHandler)
+
+	// Listen to port 8080 and wait
+	go func() {
+
+		server := http.Server{
+			Addr:    fmt.Sprintf(":%d", port),
+			Handler: handler,
+		}
+		fmt.Printf("(HTTP) Listen on :%d\n", port)
+		if err := server.ListenAndServe(); err != nil {
+			log.Fatalf("(HTTP) error listening to port: %v", err)
+		}
+	}()
+
+	// load CA certificate file and add it to list of client CAs
+	caCertFile, err := ioutil.ReadFile("./certs/ca.crt")
+	if err != nil {
+		log.Fatalf("error reading CA certificate: %v", err)
+	}
+	caCertPool := x509.NewCertPool()
+	caCertPool.AppendCertsFromPEM(caCertFile)
+
+	//caCertFilebk, err := ioutil.ReadFile("./certs.bk/ca.crt")
+	//if err != nil {
+	//	log.Fatalf("error reading CA certificate: %v", err)
+	//}
+	//caCertPool.AppendCertsFromPEM(caCertFilebk)
+
+	// Create the TLS Config with the CA pool and enable Client certificate validation
+	tlsConfig := &tls.Config{
+		ClientCAs:                caCertPool,
+		ClientAuth:               tls.RequireAndVerifyClientCert,
+		MinVersion:               tls.VersionTLS12,
+		CurvePreferences:         []tls.CurveID{tls.CurveP521, tls.CurveP384, tls.CurveP256},
+		PreferServerCipherSuites: true,
+		CipherSuites: []uint16{
+			tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+			tls.TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,
+			tls.TLS_RSA_WITH_AES_256_GCM_SHA384,
+			tls.TLS_RSA_WITH_AES_256_CBC_SHA,
+			tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+			tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+		},
+	}
+	tlsConfig.BuildNameToCertificate()
+
+	go watchCertificateFiles(caCertPool, tlsConfig)
+
+	// serve on port 8443 of local host
+	server := http.Server{
+		Addr:      fmt.Sprintf(":%d", sslPort),
+		Handler:   handler,
+		TLSConfig: tlsConfig,
 	}
 
-	// Load the initial certificate
+	fmt.Printf("(HTTPS) Listen on :%d\n", sslPort)
+	if err := server.ListenAndServeTLS("./certs/server.crt", "./certs/server.key"); err != nil {
+		log.Fatalf("(HTTPS) error listening to port: %v", err)
+	}
+
+}
+
+func watchCertificateFiles(capool *x509.CertPool, tlsConfig *tls.Config) {
+	certFile := "./certs/server.crt"
+	keyFile := "key.pem"
+
+	// Initial load of certificate files
 	cert, err := tls.LoadX509KeyPair(certFile, keyFile)
 	if err != nil {
-		log.Fatalf("Failed to load initial certificate: %v", err)
+		log.Fatal(err)
 	}
-	server.tlsConfig.Certificates = []tls.Certificate{cert}
 
-	// Start the server
-	go server.Start()
+	for {
+		// Sleep for a duration before checking for changes
+		time.Sleep(5 * time.Second)
 
-	// Start monitoring the certificate files
-	go server.MonitorFiles()
+		// Check if the certificate files have been modified
+		info, err := os.Stat(certFile)
+		if err != nil {
+			log.Fatal(err)
+		}
 
-	// Wait for the interrupt signal
-	stop := make(chan os.Signal, 1)
-	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
-	<-stop
+		// If the certificate files have been modified, reload the certificates
+		if info.ModTime().After(cert.Leaf.NotAfter) {
+			log.Println("Reloading TLS certificates...")
+
+			caCertFile, err := ioutil.ReadFile("./certs/ca.crt")
+			if err != nil {
+				log.Fatalf("error reading CA certificate: %v", err)
+			}
+			capool.AppendCertsFromPEM(caCertFile)
+
+			newCert, err := tls.LoadX509KeyPair(certFile, keyFile)
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			// Update the certificate in the HTTP server
+			srv := &http.Server{}
+			srv.TLSConfig = &tls.Config{
+				Certificates: []tls.Certificate{newCert},
+			}
+			err = srv.ListenAndServeTLS("", "")
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			// Update the current certificate
+			cert = newCert
+
+			log.Println("TLS certificates reloaded.")
+		}
+	}
+}
+
+// ...
+
+func reload_TLSConfig() error {
+	// Load the new certificate and key files
+	newCert, err := tls.LoadX509KeyPair(certFile, keyFile)
+	if err != nil {
+		return err
+	}
+
+	// Create a new TLS configuration with the new certificate and key
+	newTLSConfig := &tls.Config{
+		GetCertificate: func(*tls.ClientHelloInfo) (*tls.Certificate, error) {
+			return &newCert, nil
+		},
+		RootCAs: caPool,
+	}
+
+	// Atomically swap the TLS configuration pointer
+	oldTLSConfig := atomic.SwapPointer((*unsafe.Pointer)(unsafe.Pointer(&server.TLSConfig)), unsafe.Pointer(newTLSConfig))
+
+	// Close the previous TLS configuration to release resources
+	if oldTLSConfig != nil {
+		oldConfig := (*tls.Config)(oldTLSConfig)
+		oldConfig.Certificates = nil
+		oldConfig.GetCertificate = nil
+	}
+
+	return nil
 }
