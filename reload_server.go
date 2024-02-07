@@ -56,6 +56,8 @@ func helloHandler(w http.ResponseWriter, r *http.Request) {
 
 func reload_TLSConfig(server http.Server) error {
 
+	time.Sleep(1 * time.Minute)
+	log.Print(">>>>>>>>>>>>>>>>> reload certs<<<<<<<<<<<<<<<<<<")
 	const caFile string = "./certs.bk/ca.crt"
 	const certFile string = "./certs.bk/server.crt"
 	const keyFile string = "./certs.bk/server.key"
@@ -157,15 +159,12 @@ func main() {
 		TLSConfig: tlsConfig,
 	}
 
+	go reload_TLSConfig(server)
+
 	fmt.Printf("(HTTPS) Listen on :%d\n", sslPort)
 	if err := server.ListenAndServeTLS(server_cert, server_key); err != nil {
 		log.Fatalf("(HTTPS) error listening to port: %v", err)
 	}
 
-	time.Sleep(1 * time.Minute)
-	log.Print(">>>>>>>>>>>>>>>>> reload certs<<<<<<<<<<<<<<<<<<")
 
-	if err := reload_TLSConfig(server); err != nil {
-		log.Fatalf("error reloading TLS configuration: %v", err)
-	}
 }
