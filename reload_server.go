@@ -55,7 +55,7 @@ func helloHandler(w http.ResponseWriter, r *http.Request) {
 	io.WriteString(w, "Hello, world!\n")
 }
 
-func reload_TLSConfig(server http.Server) error {
+func reload_TLSConfig(tlsconfig TLSConfig) error {
 
 	time.Sleep(1 * time.Minute)
 	log.Print(">>>>>>>>>>>>>>>>> reload certs<<<<<<<<<<<<<<<<<<")
@@ -96,7 +96,7 @@ func reload_TLSConfig(server http.Server) error {
 	}
 
 	// Atomically swap the TLS configuration pointer
-	oldTLSConfig := atomic.SwapPointer((*unsafe.Pointer)(unsafe.Pointer(&server.TLSConfig)), unsafe.Pointer(newTLSConfig))
+	oldTLSConfig := atomic.SwapPointer((*unsafe.Pointer)(unsafe.Pointer(&tlsconfig)), unsafe.Pointer(newTLSConfig))
 
 	// Close the previous TLS configuration to release resources
 	if oldTLSConfig != nil {
@@ -182,7 +182,7 @@ func main() {
 		TLSConfig: tlsConfig,
 	}
 
-	go reload_TLSConfig(server)
+	go reload_TLSConfig(server.TLSConfig)
 
 	fmt.Printf("(HTTPS) Listen on :%d\n", sslPort)
 
