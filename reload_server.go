@@ -65,7 +65,7 @@ func reload_TLSConfig(server http.Server) error {
 	// Load the new certificate and key files
 	newCert, err := tls.LoadX509KeyPair(certFile, keyFile)
 	if err != nil {
-		return err
+		log.Fatalf("error reading server certificate: %v", err)
 	}
 
 	caCertFile, err := ioutil.ReadFile(caFile)
@@ -91,6 +91,8 @@ func reload_TLSConfig(server http.Server) error {
 		oldConfig := (*tls.Config)(oldTLSConfig)
 		oldConfig.Certificates = nil
 		oldConfig.GetCertificate = nil
+	} else {
+		log.Fatalf("error reading CA certificate: %v", err)
 	}
 
 	return nil
@@ -121,6 +123,11 @@ func main() {
 		}
 	}()
 
+	newCert, err := tls.LoadX509KeyPair(server_cert, server_key)
+	if err != nil {
+		log.Fatalf("error reading server certificate: %v", err)
+	}
+
 	// load CA certificate file and add it to list of client CAs
 	caCertFile, err := ioutil.ReadFile(ca_cert)
 	if err != nil {
@@ -137,7 +144,10 @@ func main() {
 
 	// Create the TLS Config with the CA pool and enable Client certificate validation
 	tlsConfig := &tls.Config{
-		ClientCAs:                caCertPool,
+		ClientCAs: caCertPool,
+		GetCertificate: func(*tls.ClientHelloInfo) (*tls.Certificate, error) {
+			return &newCert, nil
+		},
 		ClientAuth:               tls.RequireAndVerifyClientCert,
 		MinVersion:               tls.VersionTLS12,
 		CurvePreferences:         []tls.CurveID{tls.CurveP521, tls.CurveP384, tls.CurveP256},
