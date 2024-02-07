@@ -7,6 +7,7 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"net"
 	"net/http"
 	"sync/atomic"
 	"time"
@@ -162,9 +163,16 @@ func main() {
 	go reload_TLSConfig(server)
 
 	fmt.Printf("(HTTPS) Listen on :%d\n", sslPort)
-	if err := server.ListenAndServeTLS(server_cert, server_key); err != nil {
-		log.Fatalf("(HTTPS) error listening to port: %v", err)
+
+	ln, err := net.Listen("tcp", server.Addr)
+	if err != nil {
+		log.Fatalf("(HTTP) error listening to port: %v", err)
 	}
 
+	tlsListener := tls.NewListener(ln, server.TLSConfig)
+
+	if err := server.Serve(tlsListener); err != nil {
+		log.Fatalf("(HTTPS) error listening to port: %v", err)
+	}
 
 }
