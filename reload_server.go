@@ -9,9 +9,6 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"sync/atomic"
-	"time"
-	"unsafe"
 )
 
 func printHeader(r *http.Request) {
@@ -55,60 +52,6 @@ func helloHandler(w http.ResponseWriter, r *http.Request) {
 	io.WriteString(w, "Hello, world!\n")
 }
 
-func reload_TLSConfig(tlsconfig TLSConfig) error {
-
-	time.Sleep(1 * time.Minute)
-	log.Print(">>>>>>>>>>>>>>>>> reload certs<<<<<<<<<<<<<<<<<<")
-	const caFile string = "./certs.bk/ca.crt"
-	const certFile string = "./certs.bk/server.crt"
-	const keyFile string = "./certs.bk/server.key"
-	// Load the new certificate and key files
-	newCert, err := tls.LoadX509KeyPair(certFile, keyFile)
-	if err != nil {
-		log.Fatalf("error reading server certificate: %v", err)
-	}
-
-	caCertFile, err := ioutil.ReadFile(caFile)
-	if err != nil {
-		log.Fatalf("error reading CA certificate: %v", err)
-	}
-	caCertPool := x509.NewCertPool()
-	caCertPool.AppendCertsFromPEM(caCertFile)
-
-	// Create a new TLS configuration with the new certificate and key
-	newTLSConfig := &tls.Config{
-		ClientCAs: caCertPool,
-		GetCertificate: func(*tls.ClientHelloInfo) (*tls.Certificate, error) {
-			return &newCert, nil
-		},
-		ClientAuth:               tls.RequireAndVerifyClientCert,
-		MinVersion:               tls.VersionTLS12,
-		CurvePreferences:         []tls.CurveID{tls.CurveP521, tls.CurveP384, tls.CurveP256},
-		PreferServerCipherSuites: true,
-		CipherSuites: []uint16{
-			tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
-			tls.TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,
-			tls.TLS_RSA_WITH_AES_256_GCM_SHA384,
-			tls.TLS_RSA_WITH_AES_256_CBC_SHA,
-			tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
-			tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
-		},
-	}
-
-	// Atomically swap the TLS configuration pointer
-	oldTLSConfig := atomic.SwapPointer((*unsafe.Pointer)(unsafe.Pointer(&tlsconfig)), unsafe.Pointer(newTLSConfig))
-
-	// Close the previous TLS configuration to release resources
-	if oldTLSConfig != nil {
-		oldConfig := (*tls.Config)(oldTLSConfig)
-		oldConfig.Certificates = nil
-		oldConfig.GetCertificate = nil
-	} else {
-		log.Fatalf("error reading CA certificate: %v", err)
-	}
-
-	return nil
-}
 
 const ca_cert string = "./certs.bk/ca.crt"
 const server_cert string = "./certs.bk/server.crt"
@@ -135,10 +78,10 @@ func main() {
 		}
 	}()
 
-	newCert, err := tls.LoadX509KeyPair(server_cert, server_key)
-	if err != nil {
-		log.Fatalf("error reading server certificate: %v", err)
-	}
+//	newCert, err := tls.LoadX509KeyPair(server_cert, server_key)
+//	if err != nil {
+//		log.Fatalf("error reading server certificate: %v", err)
+//	}
 
 	// load CA certificate file and add it to list of client CAs
 	caCertFile, err := ioutil.ReadFile(ca_cert)
