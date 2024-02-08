@@ -110,9 +110,9 @@ func reload_TLSConfig(tlsconfig TLSConfig) error {
 	return nil
 }
 
-const ca_cert string = "./certs/ca.crt"
-const server_cert string = "./certs/server.crt"
-const server_key string = "./certs/server.key"
+const ca_cert string = "./certs.bk/ca.crt"
+const server_cert string = "./certs.bk/server.crt"
+const server_key string = "./certs.bk/server.key"
 
 func main() {
 	port := 9080
@@ -158,8 +158,18 @@ func main() {
 	tlsConfig := &tls.Config{
 		ClientCAs: caCertPool,
 		GetCertificate: func(*tls.ClientHelloInfo) (*tls.Certificate, error) {
-			return &newCert, nil
+			// Always get latest localhost.crt and localhost.key
+			// ex: keeping certificates file somewhere in global location where created certificates updated and this closure function can refer that
+			log.Printf("GetCertificate reloading")
+			cert, err := tls.LoadX509KeyPair(server_cert, server_key)
+			if err != nil {
+				return nil, err
+			}
+			return &cert, nil
 		},
+		//GetCertificate: func(*tls.ClientHelloInfo) (*tls.Certificate, error) {
+		//	return &newCert, nil
+		//},
 		ClientAuth:               tls.RequireAndVerifyClientCert,
 		MinVersion:               tls.VersionTLS12,
 		CurvePreferences:         []tls.CurveID{tls.CurveP521, tls.CurveP384, tls.CurveP256},
@@ -182,7 +192,7 @@ func main() {
 		TLSConfig: tlsConfig,
 	}
 
-	go reload_TLSConfig(server.TLSConfig)
+	//go reload_TLSConfig(server.TLSConfig)
 
 	fmt.Printf("(HTTPS) Listen on :%d\n", sslPort)
 
