@@ -8,12 +8,17 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 )
 
 const ca_cert_dir string = "./certs.bk"
 
 func main() {
+
+	go waitForShutdown()
 
 	name := flag.String("c", "a", "client name")
 	flag.Parse()
@@ -51,18 +56,34 @@ func main() {
 	//   --cacert ./ca.crt  --cert ./client.b.crt --key ./client.b.key  \
 	//     https://localhost:8443/hello
 
-	r, err := client.Get("https://localhost:9443/hello")
-	if err != nil {
-		log.Fatalf("error making get request: %v", err)
+	for {
+
+		r, err := client.Get("https://localhost:9443/hello")
+		if err != nil {
+			log.Fatalf("error making get request: %v", err)
+		}
+
+		// Read the response body
+		body, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			log.Fatalf("error reading response: %v", err)
+		}
+
+		// Print the response body to stdout
+		fmt.Printf("%s\n", body)
+		r.Body.Close()
+		time.Sleep(5 * time.Second)
 	}
 
-	// Read the response body
-	defer r.Body.Close()
-	body, err := ioutil.ReadAll(r.Body)
-	if err != nil {
-		log.Fatalf("error reading response: %v", err)
-	}
+}
 
-	// Print the response body to stdout
-	fmt.Printf("%s\n", body)
+func waitForShutdown() {
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
+	<-quit
+	fmt.Println("Shutting down server...")
+
+	// Perform cleanup and shutdown tasks here
+
+	os.Exit(0)
 }
