@@ -52,7 +52,6 @@ func helloHandler(w http.ResponseWriter, r *http.Request) {
 	io.WriteString(w, "Hello, world!\n")
 }
 
-
 const ca_cert string = "./certs.bk/ca.crt"
 const server_cert string = "./certs.bk/server.crt"
 const server_key string = "./certs.bk/server.key"
@@ -78,10 +77,10 @@ func main() {
 		}
 	}()
 
-//	newCert, err := tls.LoadX509KeyPair(server_cert, server_key)
-//	if err != nil {
-//		log.Fatalf("error reading server certificate: %v", err)
-//	}
+	//	newCert, err := tls.LoadX509KeyPair(server_cert, server_key)
+	//	if err != nil {
+	//		log.Fatalf("error reading server certificate: %v", err)
+	//	}
 
 	// load CA certificate file and add it to list of client CAs
 	caCertFile, err := ioutil.ReadFile(ca_cert)
@@ -100,15 +99,47 @@ func main() {
 	// Create the TLS Config with the CA pool and enable Client certificate validation
 	tlsConfig := &tls.Config{
 		ClientCAs: caCertPool,
-		GetCertificate: func(*tls.ClientHelloInfo) (*tls.Certificate, error) {
+		GetConfigForClient: func(*tls.ClientHelloInfo) (*tls.Config, error) {
 			// Always get latest localhost.crt and localhost.key
 			// ex: keeping certificates file somewhere in global location where created certificates updated and this closure function can refer that
-			log.Printf("GetCertificate reloading")
-			cert, err := tls.LoadX509KeyPair(server_cert, server_key)
+			log.Printf("tlsconfig reloading")
+			caCertFile, err := ioutil.ReadFile(ca_cert)
+			if err != nil {
+				log.Fatalf("error reading CA certificate: %v", err)
+			}
+			caCertPool := x509.NewCertPool()
+			caCertPool.AppendCertsFromPEM(caCertFile)
+
+			tls_config := &tls.Config{
+				ClientCAs: caCertPool,
+				GetCertificate: func(*tls.ClientHelloInfo) (*tls.Certificate, error) {
+					// Always get latest localhost.crt and localhost.key
+					// ex: keeping certificates file somewhere in global location where created certificates updated and this closure function can refer that
+					log.Printf("GetCertificate reloading")
+					cert, err := tls.LoadX509KeyPair(server_cert, server_key)
+					if err != nil {
+						return nil, err
+					}
+					return &cert, nil
+				},
+				ClientAuth:               tls.RequireAndVerifyClientCert,
+				MinVersion:               tls.VersionTLS12,
+				CurvePreferences:         []tls.CurveID{tls.CurveP521, tls.CurveP384, tls.CurveP256},
+				PreferServerCipherSuites: true,
+				CipherSuites: []uint16{
+					tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+					tls.TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,
+					tls.TLS_RSA_WITH_AES_256_GCM_SHA384,
+					tls.TLS_RSA_WITH_AES_256_CBC_SHA,
+					tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+					tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+				},
+			}
+
 			if err != nil {
 				return nil, err
 			}
-			return &cert, nil
+			return tls_config, nil
 		},
 		//GetCertificate: func(*tls.ClientHelloInfo) (*tls.Certificate, error) {
 		//	return &newCert, nil
@@ -126,6 +157,7 @@ func main() {
 			tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
 		},
 	}
+
 	tlsConfig.BuildNameToCertificate()
 
 	// serve on port 8443 of local host
