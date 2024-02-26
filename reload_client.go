@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-const ca_cert_dir string = "./certs.bk"
+const ca_cert_dir string = "./certs"
 
 func main() {
 

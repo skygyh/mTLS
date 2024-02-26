@@ -52,9 +52,9 @@ func helloHandler(w http.ResponseWriter, r *http.Request) {
 	io.WriteString(w, "Hello, world!\n")
 }
 
-const ca_cert string = "./certs.bk/ca.crt"
-const server_cert string = "./certs.bk/server.crt"
-const server_key string = "./certs.bk/server.key"
+const ca_cert string = "./certs/ca.crt"
+const server_cert string = "./certs/server.crt"
+const server_key string = "./certs/server.key"
 
 func main() {
 	port := 9080
