@@ -49,6 +49,11 @@ func main() {
 					// Always get latest localhost.crt and localhost.key
 					// ex: keeping certificates file somewhere in global location where created certificates updated and this closure function can refer that
 					log.Printf("GetCertificate reloading")
+					const ca_cert_dir string = "./certs"
+					clientCert := fmt.Sprintf("%s/client.%s.crt", ca_cert_dir, *name)
+					clientKey := fmt.Sprintf("%s/client.%s.key", ca_cert_dir, *name)
+					log.Println("Load key pairs - ", clientCert, clientKey)
+
 					cert, err := tls.LoadX509KeyPair(clientCert, clientKey)
 					if err != nil {
 						return nil, err
@@ -70,7 +75,25 @@ func main() {
 
 		r, err := client.Get("https://localhost:9443/hello")
 		if err != nil {
-			log.Fatalf("error making get request: %v", err)
+			log.Printf("error making get request: %v", err)
+		}
+
+		if tlsErr, ok := err.(tls.RecordHeaderError); ok {
+			fmt.Println("TLS handshake error, reloading ca root:", tlsErr)
+			const ca_cert_dir1 string = "./certs"
+
+			clientCaCert := fmt.Sprintf("%s/ca.crt", ca_cert_dir1)
+			log.Println("Load CA- ", clientCaCert)
+			cert, err := ioutil.ReadFile(clientCaCert)
+			if err != nil {
+				log.Fatalf("could not open certificate file: %v", err)
+			}
+			caCertPool := x509.NewCertPool()
+			caCertPool.AppendCertsFromPEM(cert)
+
+			client.Transport.(*http.Transport).TLSClientConfig.RootCAs = caCertPool
+
+			continue
 		}
 
 		// Read the response body
