@@ -88,10 +88,11 @@ func main() {
 
 					clientCaCert := fmt.Sprintf("%s/ca.crt", ca_cert_dir1)
 					log.Println("Load CA- ", clientCaCert)
-					cert, err := ioutil.ReadFile(clientCaCert)
-					if err != nil {
+					cert, tlserr := ioutil.ReadFile(clientCaCert)
+					if tlserr != nil {
 						log.Fatalf("could not open certificate file: %v", err)
 					}
+
 					caCertPool := x509.NewCertPool()
 					caCertPool.AppendCertsFromPEM(cert)
 
