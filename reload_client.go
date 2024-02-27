@@ -3,7 +3,6 @@ package main
 import (
 	"crypto/tls"
 	"crypto/x509"
-	"errors"
 	"flag"
 	"fmt"
 	"io/ioutil"
@@ -96,8 +95,7 @@ func main() {
 
 		}
 
-		var tlsErr *url.Error
-		if errors.As(err, &tlsErr) {
+		if _, ok := err.(*url.Error); ok {
 			fmt.Println("TLS handshake error, reloading ca root:", tlsErr)
 			const ca_cert_dir1 string = "./certs"
 
