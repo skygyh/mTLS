@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-const ca_cert_dir string = "./certs"
+const ca_cert_dir string = "./certs.bk"
 
 func main() {
 
@@ -44,7 +44,17 @@ func main() {
 		Timeout: time.Minute * 3,
 		Transport: &http.Transport{
 			TLSClientConfig: &tls.Config{
-				RootCAs:      caCertPool,
+				RootCAs: caCertPool,
+				GetClientCertificate: func(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
+					// Always get latest localhost.crt and localhost.key
+					// ex: keeping certificates file somewhere in global location where created certificates updated and this closure function can refer that
+					log.Printf("GetCertificate reloading")
+					cert, err := tls.LoadX509KeyPair(clientCert, clientKey)
+					if err != nil {
+						return nil, err
+					}
+					return &cert, nil
+				},
 				Certificates: []tls.Certificate{certificate},
 			},
 		},

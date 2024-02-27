@@ -123,7 +123,7 @@ func main() {
 					return &cert, nil
 				},
 				ClientAuth:               tls.RequireAndVerifyClientCert,
-				MinVersion:               tls.VersionTLS12,
+				MinVersion:               tls.VersionTLS13,
 				CurvePreferences:         []tls.CurveID{tls.CurveP521, tls.CurveP384, tls.CurveP256},
 				PreferServerCipherSuites: true,
 				CipherSuites: []uint16{
