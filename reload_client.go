@@ -95,7 +95,7 @@ func main() {
 
 		}
 
-		if _, ok := err.(*url.Error); ok {
+		if tlsErr, ok := err.(*url.Error); ok {
 			fmt.Println("TLS handshake error, reloading ca root:", tlsErr)
 			const ca_cert_dir1 string = "./certs"
 
