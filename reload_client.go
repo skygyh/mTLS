@@ -83,6 +83,22 @@ func main() {
 				switch err := err.(type) {
 				case *url.Error:
 					fmt.Println("URL Error:", err)
+					fmt.Println("TLS handshake error, reloading ca root:", tlsErr)
+					const ca_cert_dir1 string = "./certs"
+
+					clientCaCert := fmt.Sprintf("%s/ca.crt", ca_cert_dir1)
+					log.Println("Load CA- ", clientCaCert)
+					cert, err := ioutil.ReadFile(clientCaCert)
+					if err != nil {
+						log.Fatalf("could not open certificate file: %v", err)
+					}
+					caCertPool := x509.NewCertPool()
+					caCertPool.AppendCertsFromPEM(cert)
+
+					client.Transport.(*http.Transport).TLSClientConfig.RootCAs = caCertPool
+
+					continue
+
 				case *net.OpError:
 					fmt.Println("Network Operation Error:", err)
 				case net.Error:
@@ -95,23 +111,23 @@ func main() {
 
 		}
 
-		if tlsErr, ok := err.(*url.Error); ok {
-			fmt.Println("TLS handshake error, reloading ca root:", tlsErr)
-			const ca_cert_dir1 string = "./certs"
-
-			clientCaCert := fmt.Sprintf("%s/ca.crt", ca_cert_dir1)
-			log.Println("Load CA- ", clientCaCert)
-			cert, err := ioutil.ReadFile(clientCaCert)
-			if err != nil {
-				log.Fatalf("could not open certificate file: %v", err)
-			}
-			caCertPool := x509.NewCertPool()
-			caCertPool.AppendCertsFromPEM(cert)
-
-			client.Transport.(*http.Transport).TLSClientConfig.RootCAs = caCertPool
-
-			continue
-		}
+		//if tlsErr, ok := err.(*url.Error); ok {
+		//	fmt.Println("TLS handshake error, reloading ca root:", tlsErr)
+		//	const ca_cert_dir1 string = "./certs"
+		//
+		//	clientCaCert := fmt.Sprintf("%s/ca.crt", ca_cert_dir1)
+		//	log.Println("Load CA- ", clientCaCert)
+		//	cert, err := ioutil.ReadFile(clientCaCert)
+		//	if err != nil {
+		//		log.Fatalf("could not open certificate file: %v", err)
+		//	}
+		//	caCertPool := x509.NewCertPool()
+		//	caCertPool.AppendCertsFromPEM(cert)
+		//
+		//	client.Transport.(*http.Transport).TLSClientConfig.RootCAs = caCertPool
+		//
+		//	continue
+		//}
 
 		// Read the response body
 		body, err := ioutil.ReadAll(r.Body)
