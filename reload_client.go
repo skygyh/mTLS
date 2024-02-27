@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"syscall"
@@ -76,6 +78,21 @@ func main() {
 		r, err := client.Get("https://localhost:9443/hello")
 		if err != nil {
 			log.Printf("error making get request: %v", err)
+			if err != nil {
+				// 判断错误类型
+				switch err := err.(type) {
+				case *url.Error:
+					fmt.Println("URL Error:", err)
+				case *net.OpError:
+					fmt.Println("Network Operation Error:", err)
+				case net.Error:
+					fmt.Println("Network Error:", err)
+				default:
+					fmt.Println("Other Error:", err)
+				}
+				return
+			}
+
 		}
 
 		if tlsErr, ok := err.(tls.RecordHeaderError); ok {
