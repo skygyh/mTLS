@@ -83,7 +83,7 @@ func main() {
 				switch err := err.(type) {
 				case *url.Error:
 					fmt.Println("URL Error:", err)
-					fmt.Println("TLS handshake error, reloading ca root:", tlsErr)
+
 					const ca_cert_dir1 string = "./certs"
 
 					clientCaCert := fmt.Sprintf("%s/ca.crt", ca_cert_dir1)
